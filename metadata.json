@@ -1,0 +1,8 @@
+{
+  "name": "KD C2P v.1.12.1",
+  "description": "Convert incomplete or complete code packages into structured MVP showcases with tech stacks, funding integrations, and contributor management.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
