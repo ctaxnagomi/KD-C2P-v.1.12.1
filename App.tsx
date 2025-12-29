@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { FileData, MVPData, Funder } from './types';
-import { convertRepoToMVP, generateWhitepaper, generatePortfolio } from './services/geminiService';
+import { convertRepoToMVP } from './services/geminiService';
 import { FunderList } from './components/FunderList';
 import { FundingModal } from './components/FundingModal';
 import { gsap } from 'gsap';
@@ -14,31 +14,21 @@ import {
   Users, 
   ChevronRight, 
   Eye, 
-  CheckCircle2,
   Zap,
   Terminal,
   Layers,
-  Search,
-  ArrowRight,
   RefreshCcw,
-  DollarSign,
-  TrendingUp as ValuationIcon,
-  Globe,
   Database,
   Server,
   Layout,
-  Smartphone,
-  Box,
-  Braces,
-  GitBranch,
-  Shield,
-  Cloud,
-  Github,
   FileText,
   Briefcase,
   Loader2,
   Info,
-  Map
+  FolderTree,
+  Heart,
+  FileJson,
+  TrendingUp as ValuationIcon
 } from 'lucide-react';
 
 const KDLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
@@ -82,21 +72,36 @@ const KDLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
   );
 };
 
-// Component to handle the Buy Me a Coffee script injection with high reliability
+const WikiText: React.FC<{ content: string }> = ({ content }) => {
+  const lines = content.split('\n');
+  return (
+    <div className="space-y-4">
+      {lines.map((line, i) => {
+        const headerMatch = line.match(/^(=+)\s*(.*?)\s*\1$/);
+        if (headerMatch) {
+          const level = headerMatch[1].length;
+          if (level === 2) return <h4 key={i} className="text-xl font-bold text-white mt-8 mb-4 border-b border-white/5 pb-2">{headerMatch[2]}</h4>;
+          if (level === 3) return <h5 key={i} className="text-lg font-bold text-[#00CC00] mt-6 mb-2">{headerMatch[2]}</h5>;
+          return <h6 key={i} className="text-base font-bold text-zinc-300 mt-4 mb-2">{headerMatch[2]}</h6>;
+        }
+        if (line.trim().startsWith('|') || line.trim().startsWith('+') || line.trim().startsWith('[')) {
+          return <pre key={i} className="font-mono text-[10px] text-emerald-400/80 bg-black/30 p-2 rounded whitespace-pre overflow-x-auto">{line}</pre>;
+        }
+        if (line.trim() === '') return <div key={i} className="h-2" />;
+        return <p key={i} className="text-sm text-zinc-400 leading-relaxed">{line}</p>;
+      })}
+    </div>
+  );
+};
+
 const BmcButton: React.FC<{ html: string }> = ({ html }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!containerRef.current || !html) return;
-    
-    // Clear previous content
+    if (!containerRef.current || !html || html.length < 10 || html.toLowerCase().includes('pending')) return;
     containerRef.current.innerHTML = '';
-    
-    // Create a temporary container to parse the string
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = html.trim();
-
-    // Re-create nodes into the actual ref to ensure scripts execute
     const nodes = Array.from(tempDiv.childNodes);
     nodes.forEach(node => {
       if (node instanceof HTMLScriptElement) {
@@ -110,7 +115,6 @@ const BmcButton: React.FC<{ html: string }> = ({ html }) => {
         containerRef.current?.appendChild(style);
       } else if (node instanceof HTMLElement) {
         const clone = node.cloneNode(true) as HTMLElement;
-        // Search for script tags inside the container (common for BMC widgets)
         const innerScripts = clone.querySelectorAll('script');
         innerScripts.forEach(s => {
           const newScript = document.createElement('script');
@@ -148,11 +152,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const ctx = gsap.context(() => {
       gsap.from(".hero-content", {
-        y: 30,
-        opacity: 0,
-        duration: 0.8,
-        stagger: 0.1,
-        ease: "power2.out"
+        y: 30, opacity: 0, duration: 0.8, stagger: 0.1, ease: "power2.out"
       });
     }, containerRef);
     return () => ctx.revert();
@@ -198,37 +198,43 @@ const App: React.FC = () => {
     setLogs([]);
     addLog("> Initiating repo analysis sequence...");
     
-    let detectedName = "";
+    let detectedPackageName = "";
+    let detectedReadmeName = "";
     const fileList: FileData[] = [];
     
     for (let i = 0; i < uploadedFiles.length; i++) {
       const file = uploadedFiles[i];
-      // Use webkitRelativePath for deeper folder analysis if uploading folders
       const pathName = file.webkitRelativePath || file.name;
       addLog(`> Reading: ${pathName}`);
-      
       const text = await file.text();
       fileList.push({ name: pathName, content: text, type: file.type });
 
-      // Improved detection for Buy Me a Coffee file even in deep paths
-      if (pathName.toLowerCase().endsWith('kd-buymeacoffee.txt')) {
-        addLog(`> BMC_CONFIG_LOCATED: kd-buymeacoffee.txt found at ${pathName}`);
+      if (pathName.toLowerCase().endsWith('kd-buymeacoffee.json')) {
+        addLog(`> BMC_CONFIG_DETECTED: Synthesis protocol will extract and integrate support gateway.`);
       }
-
+      
       if (pathName.toLowerCase().endsWith('package.json')) {
         try {
           const json = JSON.parse(text);
-          if (json.name) detectedName = json.name;
+          if (json.name && json.name !== "root") detectedPackageName = json.name;
         } catch (err) {}
       }
-      if (!detectedName && pathName.toLowerCase().endsWith('readme.md')) {
+      if (pathName.toLowerCase().endsWith('readme.md')) {
         const match = text.match(/^#\s+(.+)/m);
-        if (match) detectedName = match[1].trim();
+        if (match) detectedReadmeName = match[1].trim();
       }
     }
 
-    const nameHint = detectedName || (uploadedFiles[0].webkitRelativePath ? uploadedFiles[0].webkitRelativePath.split('/')[0] : uploadedFiles[0].name.split('.')[0]);
-    
+    const folderNameFallback = uploadedFiles[0].webkitRelativePath 
+      ? uploadedFiles[0].webkitRelativePath.split('/')[0] 
+      : uploadedFiles[0].name.split('.')[0];
+      
+    const sanitizeName = (s: string) => s.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()).trim();
+
+    const nameHint = detectedPackageName 
+      ? sanitizeName(detectedPackageName) 
+      : (detectedReadmeName || sanitizeName(folderNameFallback));
+
     addLog(`> Identifying Project Identity: ${nameHint}`);
     setFiles(fileList);
     addLog("> Payload stabilized. Deep scanning architecture...");
@@ -236,7 +242,6 @@ const App: React.FC = () => {
     try {
       const data = await convertRepoToMVP(fileList, nameHint);
       addLog(`> Synthesis complete for "${data.projectName}".`);
-      
       setTimeout(() => {
         setMvpData(data);
         setIsConverting(false);
@@ -247,48 +252,166 @@ const App: React.FC = () => {
     }
   };
 
+  const handleExportStructure = () => {
+    if (!mvpData) return;
+    const structureObj = {
+      projectName: mvpData.projectName,
+      suggestedMVPStructure: mvpData.suggestedMVPStructure,
+      synthesizedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(structureObj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${mvpData.projectName.replace(/\s+/g, '_')}_structure.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExportPDF = async (type: 'whitepaper' | 'portfolio') => {
     if (!mvpData) return;
     setIsExporting(type);
     
     try {
       const content = type === 'whitepaper' ? mvpData.whitepaper : mvpData.portfolio;
-      const doc = new jsPDF();
-      const margin = 20;
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+      const margin = 25;
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - margin * 2;
       
-      doc.setFillColor(0, 0, 0);
-      doc.rect(0, 0, pageWidth, 35, 'F');
-      doc.setTextColor(0, 204, 0);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(20);
-      doc.text('KD SYNTHESIS REPORT', margin, 18);
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(9);
-      doc.text(`${type.toUpperCase()} | ${mvpData.projectName}`, margin, 28);
+      const brandColor = [0, 204, 0];
+
+      const addBranding = (pageNum: number) => {
+        doc.saveGraphicsState();
+        const gState = new (doc as any).GState({ opacity: 0.015 }); // Even subtler watermark
+        doc.setGState(gState);
+        doc.setTextColor(brandColor[0], brandColor[1], brandColor[2]);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(50);
+        doc.text("KD C2P PROTOCOL", pageWidth / 2, pageHeight / 2, {
+          angle: 45,
+          align: 'center'
+        });
+        doc.restoreGraphicsState();
+
+        doc.setFont('times', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(160, 160, 160);
+        doc.text(`SYNTH-ID: KD-${mvpData.projectName.substring(0, 3).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`, margin, pageHeight - 10);
+        doc.text(`Page ${pageNum}`, pageWidth - margin - 15, pageHeight - 10);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(200, 200, 200);
+        doc.text(`KD C2P | FORMAL SPECIFICATION v${mvpData.mvpVersion}`, margin, 12);
+      };
+
+      doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageWidth, pageHeight, 'F');
+      addBranding(1);
       
-      let cursorY = 50;
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(16);
-      doc.text(mvpData.projectName, margin, cursorY);
-      cursorY += 10;
+      doc.setFont('times', 'bold');
+      doc.setFontSize(30);
+      const titleLines = doc.splitTextToSize(mvpData.projectName.toUpperCase(), contentWidth);
+      doc.text(titleLines, pageWidth / 2, 60, { align: 'center' });
       
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      const lines = doc.splitTextToSize(content, pageWidth - margin * 2);
-      lines.forEach((line: string) => {
-        if (cursorY > pageHeight - 20) {
-          doc.addPage();
-          cursorY = 20;
+      let cursorY = 60 + (titleLines.length * 15);
+      
+      doc.setFont('times', 'italic');
+      doc.setFontSize(14);
+      doc.setTextColor(80, 80, 80);
+      doc.text(mvpData.tagline, pageWidth / 2, cursorY, { align: 'center', maxWidth: contentWidth });
+      
+      cursorY += 25;
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin + 20, cursorY, pageWidth - margin - 20, cursorY);
+      
+      cursorY += 20;
+      doc.setFont('times', 'normal');
+      doc.setFontSize(11);
+      doc.setTextColor(40, 40, 40);
+      [
+        `Document Type: ${type === 'whitepaper' ? 'Technical Research Whitepaper' : 'Executive Product Portfolio'}`,
+        `Synthesized By: KD Autonomous Reasoning Engine v1.12.1`,
+        `Date of Record: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`,
+        `Status: ${mvpData.deploymentStatus}`,
+        `Market Valuation Cap: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(mvpData.valuation.usd)}`
+      ].forEach(m => {
+        doc.text(m, pageWidth / 2, cursorY, { align: 'center' });
+        cursorY += 7;
+      });
+
+      doc.addPage();
+      let pageNum = 2;
+      addBranding(pageNum);
+      cursorY = 30;
+
+      const paragraphs = content.split('\n');
+      
+      paragraphs.forEach((paragraph: string) => {
+        const p = paragraph.trim();
+        if (!p) {
+          cursorY += 5;
+          return;
         }
-        doc.text(line, margin, cursorY);
-        cursorY += 6;
+
+        if (cursorY > pageHeight - 40) {
+          doc.addPage();
+          pageNum++;
+          addBranding(pageNum);
+          cursorY = 30;
+        }
+
+        const wikMatch = p.match(/^(=+)\s*(.*?)\s*\1$/);
+        if (wikMatch) {
+          const level = wikMatch[1].length;
+          cursorY += level === 2 ? 10 : 6;
+          doc.setFont('times', 'bold');
+          doc.setFontSize(level === 2 ? 18 : 14);
+          doc.setTextColor(0, 0, 0);
+          doc.text(wikMatch[2], margin, cursorY);
+          cursorY += level === 2 ? 12 : 8;
+        } 
+        else if (p.startsWith('|') || p.startsWith('+') || p.startsWith('[')) {
+          doc.setFont('courier', 'normal');
+          doc.setFontSize(9);
+          doc.setTextColor(0, 100, 0);
+          doc.text(p, margin + 5, cursorY);
+          cursorY += 5;
+        } 
+        else {
+          doc.setFont('times', 'normal');
+          doc.setFontSize(11);
+          doc.setTextColor(33, 33, 33);
+          
+          const lines = doc.splitTextToSize(p, contentWidth);
+          const lineHeight = 11 * 1.2 * 0.352778; 
+          
+          const pHeight = lines.length * lineHeight;
+          if (cursorY + pHeight > pageHeight - 25) {
+            doc.addPage();
+            pageNum++;
+            addBranding(pageNum);
+            cursorY = 30;
+          }
+
+          doc.text(lines, margin, cursorY, { 
+            maxWidth: contentWidth, 
+            align: 'justify' 
+          });
+          
+          cursorY += pHeight + 6; 
+        }
       });
 
       doc.save(`${mvpData.projectName.replace(/\s+/g, '_')}_${type}.pdf`);
     } catch (err) {
-      console.error("PDF export failed", err);
+      console.error("PDF generation failure", err);
     } finally {
       setIsExporting(null);
     }
@@ -309,7 +432,6 @@ const App: React.FC = () => {
     if (t.includes('react') || t.includes('ui')) return <Layout size={32} />;
     if (t.includes('node') || t.includes('backend')) return <Server size={32} />;
     if (t.includes('db') || t.includes('sql')) return <Database size={32} />;
-    if (t.includes('cloud') || t.includes('aws')) return <Cloud size={32} />;
     return <Terminal size={32} />;
   };
 
@@ -318,6 +440,12 @@ const App: React.FC = () => {
     return `https://unavatar.io/${slug}?fallback=https://ui-avatars.com/api/?name=${slug}&background=18181b&color=fff`;
   };
 
+  const isBmcValid = mvpData?.buymeacoffee && 
+                    mvpData.buymeacoffee.trim().length > 15 && 
+                    !mvpData.buymeacoffee.toLowerCase().includes('pending');
+
+  const bmcLink = mvpData?.buymeacoffee.match(/https:\/\/www\.buymeacoffee\.com\/[a-zA-Z0-9_]+/)?.[0];
+
   return (
     <div ref={containerRef} className="min-h-screen selection:bg-[#00CC00] selection:text-black">
       <nav className="flex justify-between items-center px-8 py-8 absolute w-full top-0 z-50">
@@ -325,7 +453,7 @@ const App: React.FC = () => {
           <KDLogo size="md" />
         </div>
         
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-6">
           {mvpData && (
             <button 
               onClick={resetApp}
@@ -335,18 +463,11 @@ const App: React.FC = () => {
             </button>
           )}
           
-          <div className="placeholder-button">
-            {mvpData?.buymeacoffee ? (
-              <BmcButton html={mvpData.buymeacoffee} />
-            ) : (
-              <button 
-                onClick={() => window.open('https://buymeacoffee.com', '_blank')}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-white/10 hover:border-[#00CC00]/30 text-sm font-medium transition-all text-zinc-400 hover:text-white"
-              >
-                <Coffee size={14} /> Buy Coffee
-              </button>
-            )}
-          </div>
+          {isBmcValid && bmcLink && (
+            <span className="text-xs font-bold text-zinc-400 opacity-80 hover:opacity-100 transition-opacity">
+              {bmcLink}
+            </span>
+          )}
         </div>
       </nav>
 
@@ -435,6 +556,13 @@ const App: React.FC = () => {
                     <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 group-hover:text-white">Portfolio</span>
                   </button>
                 </div>
+                <button 
+                  onClick={handleExportStructure}
+                  className="w-full flex items-center justify-center gap-2 p-4 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-[#00CC00]/30 transition-all group"
+                >
+                  <FileJson size={16} className="text-[#00CC00]" />
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 group-hover:text-white">Export Project Structure</span>
+                </button>
                 <button onClick={() => setIsSponsorModalOpen(true)} className="w-full py-4 bg-[#00CC00] text-black font-bold rounded-2xl flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-xl shadow-[#00CC00]/10 mt-2">
                   <Rocket size={18} /> Sponsor Build
                 </button>
@@ -448,8 +576,8 @@ const App: React.FC = () => {
                 {activeTab === 'overview' && (
                   <div className="space-y-12 max-w-2xl">
                     <header>
-                      <h3 className="text-4xl font-bold tracking-tight mb-2 text-gradient">{mvpData.tagline}</h3>
-                      <p className="text-sm text-zinc-500 uppercase tracking-widest mb-4 font-mono">Status: {mvpData.deploymentStatus}</p>
+                      <h3 className="text-4xl font-bold tracking-tight mb-2 text-gradient leading-tight">{mvpData.tagline}</h3>
+                      <p className="text-xs text-zinc-500 uppercase tracking-widest mb-4 font-mono">Status: {mvpData.deploymentStatus}</p>
                       <p className="text-xl text-zinc-400 leading-relaxed font-light">{mvpData.valueProposition}</p>
                     </header>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -463,6 +591,22 @@ const App: React.FC = () => {
                       </div>
                     </div>
                     
+                    {isBmcValid && (
+                      <div className="relative p-1 p-8 rounded-[2rem] border-2 border-dashed border-[#00CC00]/40 flex flex-col md:flex-row items-center gap-8 group transition-all hover:bg-[#00CC00]/5 bg-black/20 overflow-hidden">
+                        <div className="w-12 h-12 rounded-2xl bg-[#00CC00]/10 flex items-center justify-center shrink-0 border border-[#00CC00]/20">
+                          <Heart size={24} className="text-[#00CC00]" />
+                        </div>
+                        <div className="flex-1 text-center md:text-left">
+                          <h4 className="font-bold text-white text-xl mb-1">Fuel the Protocol</h4>
+                          <p className="text-xs text-zinc-400 font-medium opacity-80">Official support gateway detected. Fuel the next major release.</p>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-center gap-2">
+                          {bmcLink && <span className="text-[10px] font-mono text-[#00CC00] bg-[#00CC00]/5 px-3 py-1 rounded-full border border-[#00CC00]/10">{bmcLink}</span>}
+                          <BmcButton html={mvpData!.buymeacoffee} />
+                        </div>
+                      </div>
+                    )}
+
                     <div className="space-y-6">
                       <h4 className="text-xs font-bold uppercase tracking-[0.3em] text-zinc-600 border-b border-white/5 pb-2">Launch Roadmap</h4>
                       <div className="space-y-4">
@@ -494,40 +638,36 @@ const App: React.FC = () => {
                           <div key={i} className="group relative glass-card rounded-2xl flex flex-col items-center justify-center p-6 text-center hover:bg-[#00CC00] hover:text-black transition-all">
                             <div className="mb-4 opacity-40 group-hover:opacity-100 group-hover:scale-110 transition-all">{getTechIcon(tech.name)}</div>
                             <span className="text-[10px] font-bold uppercase tracking-widest">{tech.name}</span>
-                            <div className="absolute -top-2 left-1/2 -translate-x-1/2 -translate-y-full w-40 p-3 rounded-xl bg-black border border-[#00CC00]/30 text-[9px] text-zinc-400 opacity-0 group-hover:opacity-100 transition-all z-20">
-                              <div className="font-bold text-[#00CC00] mb-1">{tech.name}</div>
-                              <p className="italic">{tech.description}</p>
-                            </div>
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Suggested Upgrades</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {mvpData.techStack.suggested.map((tech, i) => (
-                          <div key={i} className="p-5 rounded-2xl bg-white/[0.03] border border-white/5 flex gap-4">
-                            <div className="w-10 h-10 rounded-xl bg-[#00CC00]/10 flex items-center justify-center shrink-0">
-                              <Zap size={18} className="text-[#00CC00]" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-bold text-white mb-1">{tech.name}</p>
-                              <p className="text-[10px] text-zinc-500 mb-2">{tech.description}</p>
-                              <p className="text-[10px] text-[#00CC00] font-bold italic">Benefit: {tech.benefit}</p>
-                            </div>
-                          </div>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500 flex items-center gap-2">
+                           <FolderTree size={14} /> Suggested MVP Structure
+                        </h4>
+                        <div className="p-6 rounded-2xl bg-black/40 border border-white/5 font-mono text-[10px] text-zinc-400 overflow-x-auto custom-scrollbar">
+                           <pre className="whitespace-pre">{mvpData.suggestedMVPStructure}</pre>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="p-8 rounded-[1.5rem] bg-[#020802] border border-[#002200] space-y-4">
-                      <div className="flex items-center gap-3">
-                        <Zap size={16} className="text-[#00CC00] fill-[#00CC00]" />
-                        <h4 className="font-bold text-[#00CC00] text-sm uppercase tracking-widest">KD AI Intelligence Report</h4>
-                      </div>
-                      <div className="text-xs text-zinc-500 leading-relaxed whitespace-pre-line prose prose-invert max-w-none">
-                        {mvpData.intelligenceReport}
+                      <div className="space-y-4">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">Suggested Upgrades</h4>
+                        <div className="grid grid-cols-1 gap-4">
+                          {mvpData.techStack.suggested.map((tech, i) => (
+                            <div key={i} className="p-5 rounded-2xl bg-white/[0.03] border border-white/5 flex gap-4">
+                              <div className="w-10 h-10 rounded-xl bg-[#00CC00]/10 flex items-center justify-center shrink-0">
+                                <Zap size={18} className="text-[#00CC00]" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-bold text-white mb-1">{tech.name}</p>
+                                <p className="text-[10px] text-zinc-500 mb-2">{tech.description}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -547,14 +687,13 @@ const App: React.FC = () => {
 
                     <div className="pt-10 border-t border-white/5">
                       <div className="flex items-center gap-3 mb-6">
-                        <Info size={16} className="text-[#00CC00]" />
+                        <span className="p-2 rounded-lg bg-[#00CC00]/10 border border-[#00CC00]/20">
+                          <Info size={16} className="text-[#00CC00]" />
+                        </span>
                         <h4 className="font-bold text-white text-sm uppercase tracking-widest">Valuation Tutorial Guide</h4>
                       </div>
-                      <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5 text-xs text-zinc-400 leading-relaxed italic whitespace-pre-line">
-                        {mvpData.valuationTutorial}
-                      </div>
-                      <div className="mt-4 p-4 rounded-xl bg-[#00CC00]/5 border border-[#00CC00]/20 text-[10px] text-[#00CC00] font-bold italic">
-                        Justification: {mvpData.valuation.justification}
+                      <div className="p-8 rounded-3xl bg-white/[0.02] border border-white/5">
+                        <WikiText content={mvpData.valuationTutorial} />
                       </div>
                     </div>
                   </div>
@@ -579,45 +718,6 @@ const App: React.FC = () => {
                             </div>
                           </div>
                         ))}
-                      </div>
-                    </div>
-
-                    <div className="pt-12 border-t border-white/5 space-y-8">
-                      <div className="flex flex-col gap-2">
-                        <h3 className="text-2xl font-bold tracking-tight">Contribution Protocol</h3>
-                        <p className="text-sm text-zinc-500">Help evolve the KD Synthesis engine. Our infrastructure is open for innovation.</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="p-8 rounded-[2rem] bg-white/[0.01] border border-white/5 hover:border-[#00CC00]/20 transition-all flex gap-6 items-start group">
-                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 group-hover:border-[#00CC00]/30 transition-all">
-                            <Terminal size={20} className="text-zinc-400 group-hover:text-[#00CC00]" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-bold uppercase tracking-widest text-[#00CC00]">Issue Tracking</h4>
-                            <p className="text-sm text-zinc-500 leading-relaxed">Report reproducible bugs or inconsistencies. Provide environment details and terminal logs for faster resolution via the GitHub Issue Tracker.</p>
-                          </div>
-                        </div>
-
-                        <div className="p-8 rounded-[2rem] bg-white/[0.01] border border-white/5 hover:border-[#00CC00]/20 transition-all flex gap-6 items-start group">
-                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 group-hover:border-[#00CC00]/30 transition-all">
-                            <Zap size={20} className="text-zinc-400 group-hover:text-[#00CC00]" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-bold uppercase tracking-widest text-[#00CC00]">Feature Proposals</h4>
-                            <p className="text-sm text-zinc-500 leading-relaxed">Propose new synthesis modules (e.g., market cross-referencing for crypto, real estate) or UI/UX enhancements in our Discussions tab.</p>
-                          </div>
-                        </div>
-
-                        <div className="p-8 rounded-[2rem] bg-white/[0.01] border border-white/5 hover:border-[#00CC00]/20 transition-all flex gap-6 items-start group">
-                          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center shrink-0 border border-white/10 group-hover:border-[#00CC00]/30 transition-all">
-                            <GitBranch size={20} className="text-zinc-400 group-hover:text-[#00CC00]" />
-                          </div>
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-bold uppercase tracking-widest text-[#00CC00]">Code Synthesis (PRs)</h4>
-                            <p className="text-sm text-zinc-500 leading-relaxed">Submit improvements via pull requests. Adhere to TypeScript standards and maintain the modular architectural blueprint of the KD Protocol.</p>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </div>

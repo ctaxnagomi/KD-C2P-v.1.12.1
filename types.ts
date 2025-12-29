@@ -44,6 +44,7 @@ export interface MVPData {
   buymeacoffee: string;
   whitepaper: string;
   portfolio: string;
+  suggestedMVPStructure: string;
 }
 
 export interface Funder {

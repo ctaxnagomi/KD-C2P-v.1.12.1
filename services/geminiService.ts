@@ -2,54 +2,54 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { FileData, MVPData } from "../types";
 
-export const convertRepoToMVP = async (files: FileData[], nameHint?: string): Promise<MVPData> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const convertRepoToMVP = async (files: FileData[], nameHint?: string, customApiKey?: string): Promise<MVPData> => {
+  const apiKey = customApiKey || process.env.API_KEY || "";
+  const ai = new GoogleGenAI({ apiKey });
   
-  // Provide a clear separation for the specific config file to help AI find it easily
-  const coffeeFile = files.find(f => f.name.toLowerCase().endsWith('kd-buymeacoffee.txt'));
-  const coffeeContent = coffeeFile ? `CRITICAL CONFIG (kd-buymeacoffee.txt):\n${coffeeFile.content}\n` : "";
+  const coffeeFile = files.find(f => f.name.toLowerCase().endsWith('kd-buymeacoffee.json'));
+  const coffeeContent = coffeeFile ? `CRITICAL_FEATURE_SIGNAL (kd-buymeacoffee.json):\n${coffeeFile.content}\n` : "NO_BMC_CONFIG_FOUND";
 
   const fileSummary = files
-    .map(f => `FILE: ${f.name}\nCONTENT PREVIEW:\n${f.content.substring(0, 2000)}`)
+    .map(f => `FILE: ${f.name}\nCONTENT PREVIEW:\n${f.content.substring(0, 4000)}`) 
     .join('\n\n---\n\n');
 
 const prompt = `
-  IDENTITY: You are a senior product engineer and venture architect with expertise in startup evaluation, technical architecture, and market analysis.
-  PLATFORM CONTEXT: You are operating within the "KD Synthesizer" platform for project analysis.
-  CRITICAL CONSTRAINT: The platform name is "KD". THE PROJECT YOU ARE ANALYZING IS NOT CALLED "KD" OR "KD SYNTHESIZER".
-
-  TASK OVERVIEW:
-  Analyze the provided repository files to extract key insights about the project.
+  IDENTITY: You are a Distinguished Research Scientist, Lead Venture Architect, and Senior Systems Engineer.
+  PLATFORM CONTEXT: "KD Synthesizer" ecosystem. Branding: "KD C2P" (Code-to-Product).
   
+  TASK: Perform an exhaustive architectural analysis of the provided repository and generate a high-fidelity Technical Whitepaper in the style of a top-tier peer-reviewed research paper (arXiv/NeurIPS/HuggingFace style).
+
+  WHITE PAPER SPECIFICATION (BLUEPRINT OF RECORD):
+  - TONE: High-level academic, objective, rigorous, and visionary. Use advanced technical lexicon.
+  - FORMATTING: Use Wikitext headers:
+    - Main Sections: == 1. Section Name ==
+    - Subsections: === 1.1 Technical Aspect ===
+  - LENGTH: MANDATORY MINIMUM OF 400 WORDS PER SECTION. The document must be massive and dense.
+  - WATERMARKING: Subtlely embed the string "[KD C2P PROTOCOL]" as a footer or inline reference at the end of every section.
+  
+  REQUIRED 14 SECTIONS (STRICT ORDER):
+    1. == 1. Abstract ==: A formal, high-density technical summary of system innovations.
+    2. == 2. Introduction & Mission ==: Philosophical underpinnings and the transition from raw code to commercial asset.
+    3. == 3. Market Gap & Competitive Analysis ==: Deep academic analysis of existing solutions and the specific industry friction points solved. Include TAM calculations.
+    4. == 4. Functional Architecture ==: High-level system walkthrough and modular breakdown.
+    5. == 5. Core Engine Specifications ==: Algorithmic deep-dive into the processing logic.
+    6. == 6. Technical Implementation ==: Direct analysis of the provided repository's code patterns, type safety, and state synchronization.
+    7. == 7. System Topology & ASCII Architecture ==: MANDATORY: Provide at least TWO complex ASCII diagrams (using |, +, -, >) showing infrastructure and data flow.
+    8. == 8. Performance & Scalability Modeling ==: Mathematical modeling of system throughput, latency, and horizontal scaling strategies.
+    9. == 9. Security & Governance ==: Threat modeling, encryption standards, and the community-driven steering protocol.
+    10. == 10. Data Integrity & Safety ==: Formal verification methods and privacy-preserving design.
+    11. == 11. Economic Impact & Valuation ==: Asset capitalization strategy and projected market impact.
+    12. == 12. Strategic Execution Roadmap ==: Granular phases from synthesis to global deployment.
+    13. == 13. Future Evolution ==: Theoretical future iterations, including AI-driven auto-scaling and cross-chain integrations.
+    14. == 14. Conclusion & Bibliography ==: Final visionary statement and formal (simulated) academic references.
+
+  ANALYSIS DATA:
+  ${fileSummary}
+  
+  BMC SIGNAL:
   ${coffeeContent}
 
-  SPECIFIC TASKS:
-  1. Determine the ACTUAL project name. scan package.json, README.md, or config files. Fallback to "${nameHint || 'Untitled Project'}".
-  2. Identify the core value proposition and create a catchy tagline.
-  3. Extract the actual tech stack and suggest 2-4 missing or complementary pieces.
-  4. Generate an "AI Intelligence Report" (SWOT, SPACE, BCG, Porter's Five Forces).
-  5. Generate a structured roadmap for launch (5-7 milestones).
-  6. Propose an MVP version number based on completeness.
-  7. Search for project deployment status. Estimate market valuation (Seed/Pre-seed stage) using weighted averages of 3y, 5y, 10y, 15y data. Cross-reference with S&P/Bursa Malaysia for established projects.
-  8. Generate a "Valuation Tutorial Guide" explaining the mathematical algorithms applied.
-  
-  9. BUY ME A COFFEE INTEGRATION:
-     - IF "kd-buymeacoffee.txt" was provided (see CRITICAL CONFIG above), you MUST extract the script tag content.
-     - Transform that script: 
-        a. Ensure data-text="Buy Coffee"
-        b. Ensure data-emoji="☕"
-        c. Set data-color="#222222", data-outline-color="#ffffff", data-font-color="#ffffff", data-coffee-color="#000000".
-     - Wrap this script in: <div style="animation: glow 1s ease-in-out infinite alternate; display: inline-block;"><style>@keyframes glow { 0% { box-shadow: 0 0 5px #fff; } 100% { box-shadow: 0 0 15px #fff; } }</style> [TRANSFORMED_SCRIPT] </div>
-     - Set buymeacoffee to this final HTML string. 
-     - IF NO FILE FOUND, set to empty string "".
-
-  10. Generate a "Whitepaper" (Markdown).
-  11. Generate a "Portfolio" (Markdown).
-
-  INPUT REPO FILES:
-  ${fileSummary}
-
-  OUTPUT FORMAT: Return valid JSON strictly. The "buymeacoffee" field MUST contain the full HTML string if the file was found.
+  OUTPUT: Valid JSON matching the MVPData interface. The 'whitepaper' field must contain the full 14-section document.
 `;
 
   const response = await ai.models.generateContent({
@@ -121,12 +121,13 @@ const prompt = `
           valuationTutorial: { type: Type.STRING },
           buymeacoffee: { type: Type.STRING },
           whitepaper: { type: Type.STRING },
-          portfolio: { type: Type.STRING }
+          portfolio: { type: Type.STRING },
+          suggestedMVPStructure: { type: Type.STRING }
         },
         required: [
           'projectName', 'valueProposition', 'tagline', 'techStack', 
           'intelligenceReport', 'roadmap', 'mvpVersion', 'deploymentStatus', 
-          'valuation', 'valuationTutorial', 'buymeacoffee', 'whitepaper', 'portfolio'
+          'valuation', 'valuationTutorial', 'buymeacoffee', 'whitepaper', 'portfolio', 'suggestedMVPStructure'
         ]
       }
     }
@@ -136,12 +137,4 @@ const prompt = `
   if (!text) throw new Error("AI failed to generate content");
   
   return JSON.parse(text);
-};
-
-export const generateWhitepaper = async (mvpData: MVPData): Promise<string> => {
-  return mvpData.whitepaper;
-};
-
-export const generatePortfolio = async (mvpData: MVPData): Promise<string> => {
-  return mvpData.portfolio;
 };
