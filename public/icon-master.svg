@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#003300" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#050505" stop-opacity="1"/>
+    </radialGradient>
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <linearGradient id="cyberGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#39FF14" />
+      <stop offset="100%" stop-color="#00CC00" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="512" height="512" rx="100" fill="#060806" />
+  <rect width="512" height="512" rx="100" fill="url(#bgGlow)" />
+  
+  <!-- Border subtle grid glow -->
+  <rect x="16" y="16" width="480" height="480" rx="88" fill="none" stroke="#00FF41" stroke-width="2" stroke-opacity="0.25" />
+  <rect x="24" y="24" width="464" height="464" rx="80" fill="none" stroke="#00CC00" stroke-width="1" stroke-opacity="0.1" />
+
+  <!-- Pixel Grid Backdrop Accents -->
+  <g opacity="0.08" fill="#00FF41">
+    <circle cx="64" cy="64" r="3" />
+    <circle cx="128" cy="64" r="3" />
+    <circle cx="384" cy="64" r="3" />
+    <circle cx="448" cy="64" r="3" />
+    <circle cx="64" cy="448" r="3" />
+    <circle cx="448" cy="448" r="3" />
+  </g>
+
+  <!-- KD Glyph Structure (Centered and Scaled) -->
+  <g transform="translate(48, 64) scale(5.2)" filter="url(#neonGlow)">
+    <!-- Letter K -->
+    <!-- Vertical stem -->
+    <rect x="10" y="8" width="6" height="64" fill="url(#cyberGreen)" rx="1" />
+    
+    <!-- Top branch -->
+    <rect x="18" y="34" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="26" y="26" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="34" y="18" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="42" y="10" width="7" height="8" fill="url(#cyberGreen)" rx="1" />
+    
+    <!-- Bottom branch -->
+    <rect x="18" y="42" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="26" y="50" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="34" y="58" width="6" height="8" fill="url(#cyberGreen)" rx="1" />
+    <rect x="42" y="64" width="7" height="8" fill="url(#cyberGreen)" rx="1" />
+
+    <!-- Letter D -->
+    <!-- Left vertical stem -->
+    <rect x="56" y="8" width="6" height="64" fill="url(#cyberGreen)" rx="1" />
+    <!-- Top bar -->
+    <rect x="62" y="8" width="14" height="6" fill="url(#cyberGreen)" rx="1" />
+    <!-- Bottom bar -->
+    <rect x="62" y="66" width="14" height="6" fill="url(#cyberGreen)" rx="1" />
+    <!-- Right curve / vertical edge -->
+    <rect x="76" y="14" width="6" height="52" fill="url(#cyberGreen)" rx="1" />
+  </g>
+</svg>

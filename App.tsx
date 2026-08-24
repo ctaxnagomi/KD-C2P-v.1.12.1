@@ -246,8 +246,10 @@ const App: React.FC = () => {
         setMvpData(data);
         setIsConverting(false);
       }, 800);
-    } catch (err) {
-      addLog("!! Critical Error during conversion !!");
+    } catch (err: any) {
+      const msg = err?.message || "Synthesis service encountered an issue.";
+      addLog(`!! Synthesis Error: ${msg} !!`);
+      addLog(`> Please ensure the repository files are readable and try again.`);
       setIsConverting(false);
     }
   };
