@@ -17,41 +17,6 @@ Everything exportable: whitepaper/portfolio as branded PDFs (watermarked, with s
 
 ---
 
-## Run Locally
-
-**Prerequisites:** Node.js 18+
-
-1. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-2. Create a `.env.local` file in the project root containing your Gemini API key:
-
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   ```
-
-   Get a key from [Google AI Studio](https://aistudio.google.com/apikey).
-
-3. Start the dev server:
-
-   ```bash
-   npm run dev
-   ```
-
-4. Open [http://localhost:3000](http://localhost:3000), click **Upload Repository**, and select your project folder (or files). The synthesis log streams live while Gemini analyzes the code.
-
-### Production Mode
-
-```bash
-npm run build   # builds the Vite client into dist/
-npm start       # runs Express on http://localhost:3000 (serves dist/ + API)
-```
-
----
-
 ## How It Works
 
 ```
