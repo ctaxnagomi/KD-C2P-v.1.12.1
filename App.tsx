@@ -72,27 +72,84 @@ const KDLogo: React.FC<{ size?: 'sm' | 'md' | 'lg' }> = ({ size = 'md' }) => {
   );
 };
 
-const WikiText: React.FC<{ content: string }> = ({ content }) => {
-  const lines = content.split('\n');
-  return (
-    <div className="space-y-4">
-      {lines.map((line, i) => {
-        const headerMatch = line.match(/^(=+)\s*(.*?)\s*\1$/);
-        if (headerMatch) {
-          const level = headerMatch[1].length;
-          if (level === 2) return <h4 key={i} className="text-xl font-bold text-white mt-8 mb-4 border-b border-white/5 pb-2">{headerMatch[2]}</h4>;
-          if (level === 3) return <h5 key={i} className="text-lg font-bold text-[#00CC00] mt-6 mb-2">{headerMatch[2]}</h5>;
-          return <h6 key={i} className="text-base font-bold text-zinc-300 mt-4 mb-2">{headerMatch[2]}</h6>;
-        }
-        if (line.trim().startsWith('|') || line.trim().startsWith('+') || line.trim().startsWith('[')) {
-          return <pre key={i} className="font-mono text-[10px] text-emerald-400/80 bg-black/30 p-2 rounded whitespace-pre overflow-x-auto">{line}</pre>;
-        }
-        if (line.trim() === '') return <div key={i} className="h-2" />;
-        return <p key={i} className="text-sm text-zinc-400 leading-relaxed">{line}</p>;
-      })}
-    </div>
-  );
+// A line is a monospace (code/table/diagram) line — EXCEPT arXiv-style
+// reference entries like "[1] M. Abramov. ..." which are body text.
+const isMonoLine = (line: string): boolean => {
+  const t = line.trim();
+  if (!t || /^\[\d+\]\s/.test(t)) return false;
+  return t.startsWith('|') || t.startsWith('+') || t.startsWith('[');
 };
+
+type WikiSegment =
+  | { type: 'header'; level: number; text: string }
+  | { type: 'mono'; lines: string[] }
+  | { type: 'keywords'; text: string }
+  | { type: 'body'; text: string };
+
+// Groups the raw wikitext into renderable segments. Consecutive table/diagram
+// lines collapse into ONE segment so alignment survives on screen and in PDF.
+export const parseWikiSegments = (content: string): WikiSegment[] => {
+  const lines = content.split('\n');
+  const segments: WikiSegment[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const headerMatch = line.match(/^(=+)\s*(.*?)\s*\1$/);
+    if (headerMatch) {
+      segments.push({ type: 'header', level: headerMatch[1].length, text: headerMatch[2] });
+      i++;
+      continue;
+    }
+    if (isMonoLine(line)) {
+      const buf: string[] = [];
+      while (i < lines.length && isMonoLine(lines[i])) {
+        buf.push(lines[i]);
+        i++;
+      }
+      segments.push({ type: 'mono', lines: buf });
+      continue;
+    }
+    const t = line.trim();
+    if (!t) {
+      segments.push({ type: 'body', text: '' });
+      i++;
+      continue;
+    }
+    if (t.startsWith('Keywords:')) {
+      segments.push({ type: 'keywords', text: t.slice('Keywords:'.length).trim() });
+    } else {
+      segments.push({ type: 'body', text: t });
+    }
+    i++;
+  }
+  return segments;
+};
+
+const WikiText: React.FC<{ content: string }> = ({ content }) => (
+  <div className="space-y-4">
+    {parseWikiSegments(content).map((seg, i) => {
+      if (seg.type === 'header') {
+        if (seg.level === 2) return <h4 key={i} className="text-xl font-bold text-white mt-8 mb-4 border-b border-white/5 pb-2">{seg.text}</h4>;
+        if (seg.level === 3) return <h5 key={i} className="text-lg font-bold text-[#00CC00] mt-6 mb-2">{seg.text}</h5>;
+        return <h6 key={i} className="text-base font-bold text-zinc-300 mt-4 mb-2">{seg.text}</h6>;
+      }
+      if (seg.type === 'mono') {
+        return (
+          <pre key={i} className="font-mono text-[10px] leading-relaxed text-emerald-400/80 bg-black/30 p-3 rounded whitespace-pre overflow-x-auto custom-scrollbar">{seg.lines.join('\n')}</pre>
+        );
+      }
+      if (seg.type === 'keywords') {
+        return (
+          <p key={i} className="text-sm text-zinc-400 leading-relaxed italic">
+            <span className="font-bold not-italic text-white">Keywords: </span>{seg.text}
+          </p>
+        );
+      }
+      if (!seg.text) return <div key={i} className="h-2" />;
+      return <p key={i} className="text-sm text-zinc-400 leading-relaxed">{seg.text}</p>;
+    })}
+  </div>
+);
 
 const BmcButton: React.FC<{ html: string }> = ({ html }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -353,62 +410,98 @@ const App: React.FC = () => {
       addBranding(pageNum);
       cursorY = 30;
 
-      const paragraphs = content.split('\n');
-      
-      paragraphs.forEach((paragraph: string) => {
-        const p = paragraph.trim();
-        if (!p) {
-          cursorY += 5;
-          return;
-        }
-
-        if (cursorY > pageHeight - 40) {
+      parseWikiSegments(content).forEach((seg) => {
+        if (seg.type !== 'mono' && cursorY > pageHeight - 40) {
           doc.addPage();
           pageNum++;
           addBranding(pageNum);
           cursorY = 30;
         }
 
-        const wikMatch = p.match(/^(=+)\s*(.*?)\s*\1$/);
-        if (wikMatch) {
-          const level = wikMatch[1].length;
-          cursorY += level === 2 ? 10 : 6;
+        if (seg.type === 'header') {
+          const isMajor = seg.level === 2;
+          cursorY += isMajor ? 10 : 6;
           doc.setFont('times', 'bold');
-          doc.setFontSize(level === 2 ? 18 : 14);
+          doc.setFontSize(isMajor ? 18 : 14);
           doc.setTextColor(0, 0, 0);
-          doc.text(wikMatch[2], margin, cursorY);
-          cursorY += level === 2 ? 12 : 8;
-        } 
-        else if (p.startsWith('|') || p.startsWith('+') || p.startsWith('[')) {
-          doc.setFont('courier', 'normal');
-          doc.setFontSize(9);
-          doc.setTextColor(0, 100, 0);
-          doc.text(p, margin + 5, cursorY);
-          cursorY += 5;
-        } 
-        else {
-          doc.setFont('times', 'normal');
+          doc.text(seg.text, margin, cursorY);
+          cursorY += isMajor ? 12 : 8;
+          return;
+        }
+
+        if (seg.type === 'keywords') {
+          doc.setFont('times', 'bolditalic');
           doc.setFontSize(11);
-          doc.setTextColor(33, 33, 33);
-          
-          const lines = doc.splitTextToSize(p, contentWidth);
-          const lineHeight = 11 * 1.2 * 0.352778; 
-          
-          const pHeight = lines.length * lineHeight;
-          if (cursorY + pHeight > pageHeight - 25) {
+          doc.setTextColor(40, 40, 40);
+          const kwLines = doc.splitTextToSize(`Keywords: ${seg.text}`, contentWidth);
+          const kwH = kwLines.length * 11 * 1.2 * 0.352778;
+          if (cursorY + kwH > pageHeight - 25) {
             doc.addPage();
             pageNum++;
             addBranding(pageNum);
             cursorY = 30;
           }
-
-          doc.text(lines, margin, cursorY, { 
-            maxWidth: contentWidth, 
-            align: 'justify' 
-          });
-          
-          cursorY += pHeight + 6; 
+          doc.text(kwLines, margin, cursorY);
+          cursorY += kwH + 8;
+          return;
         }
+
+        if (seg.type === 'mono') {
+          // ASCII figures / tables: keep contiguous blocks intact and scale to fit width
+          doc.setFont('courier', 'normal');
+          doc.setTextColor(0, 100, 0);
+          const maxLen = Math.max(...seg.lines.map(l => l.length));
+          const unitW = doc.getStringUnitWidth('0') * 0.352778; // mm per char at fontSize 1
+          const fs = maxLen > 0 ? Math.min(8.5, Math.max(4.2, (contentWidth - 10) / (maxLen * unitW))) : 8.5;
+          doc.setFontSize(fs);
+          const lh = fs * 1.3;
+          const blockH = seg.lines.length * lh;
+          if (blockH <= pageHeight - 70 && cursorY + blockH > pageHeight - 40) {
+            doc.addPage();
+            pageNum++;
+            addBranding(pageNum);
+            cursorY = 30;
+          }
+          seg.lines.forEach((l) => {
+            if (cursorY > pageHeight - 35) {
+              doc.addPage();
+              pageNum++;
+              addBranding(pageNum);
+              cursorY = 30;
+            }
+            doc.text(l, margin + 4, cursorY);
+            cursorY += lh;
+          });
+          cursorY += 4;
+          return;
+        }
+
+        const p = seg.text;
+        if (!p) {
+          cursorY += 5;
+          return;
+        }
+        doc.setFont('times', 'normal');
+        doc.setFontSize(11);
+        doc.setTextColor(33, 33, 33);
+
+        const lines = doc.splitTextToSize(p, contentWidth);
+        const lineHeight = 11 * 1.2 * 0.352778;
+
+        const pHeight = lines.length * lineHeight;
+        if (cursorY + pHeight > pageHeight - 25) {
+          doc.addPage();
+          pageNum++;
+          addBranding(pageNum);
+          cursorY = 30;
+        }
+
+        doc.text(lines, margin, cursorY, {
+          maxWidth: contentWidth,
+          align: 'justify'
+        });
+
+        cursorY += pHeight + 6;
       });
 
       doc.save(`${mvpData.projectName.replace(/\s+/g, '_')}_${type}.pdf`);

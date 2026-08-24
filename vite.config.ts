@@ -4,9 +4,16 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  // Populate process.env for server-side handlers
-  process.env.GEMINI_API_KEY = process.env.GEMINI_API_KEY || env.GEMINI_API_KEY || env.API_KEY || '';
-  process.env.API_KEY = process.env.API_KEY || env.API_KEY || env.GEMINI_API_KEY || '';
+  // Populate process.env for server-side handlers (all synthesis providers)
+  const handlerEnvVars = [
+    'GEMINI_API_KEY', 'API_KEY',
+    'GOOGLE_CLOUD_PROJECT', 'GOOGLE_CLOUD_LOCATION', 'GOOGLE_APPLICATION_CREDENTIALS',
+    'OPENAI_BASE_URL', 'OPENAI_API_KEY', 'OPENAI_MODEL',
+    'OLLAMA_BASE_URL', 'OLLAMA_MODEL',
+  ];
+  for (const key of handlerEnvVars) {
+    process.env[key] = process.env[key] || env[key] || '';
+  }
 
   return {
     server: {
